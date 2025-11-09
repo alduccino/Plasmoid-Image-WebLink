@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # KDE Plasma 6.4+ Image Viewer with Web Link Plasmoid Builder
-# Version: 1.3.0 - Added link name field for panel tooltips
+# Version: 1.4.0 - Added optional hover image feature
 
 set -e
 
@@ -24,12 +24,12 @@ cat > "$PKG_DIR/metadata.json" <<'EOF'
             }
         ],
         "Category": "Graphics",
-        "Description": "Displays an image (GIF, JPG, PNG, WebP, SVG) with clickable web link",
+        "Description": "Displays an image (GIF, JPG, PNG, WebP, SVG) with clickable web link and optional hover image",
         "Icon": "image-x-generic",
         "Id": "org.example.imageweblink",
         "License": "GPL-3.0-or-later",
         "Name": "Image Web Link",
-        "Version": "1.3",
+        "Version": "1.4",
         "Website": "https://example.org"
     },
     "KPackage": {
@@ -51,6 +51,9 @@ cat > "$PKG_DIR/contents/config/main.xml" <<'EOF'
   <kcfgfile name=""/>
   <group name="General">
     <entry name="imagePath" type="String">
+      <default></default>
+    </entry>
+    <entry name="hoverImagePath" type="String">
       <default></default>
     </entry>
     <entry name="webLink" type="String">
@@ -107,6 +110,7 @@ import org.kde.kirigami as Kirigami
 
 KCM.SimpleKCM {
     property alias cfg_imagePath: imagePath.text
+    property alias cfg_hoverImagePath: hoverImagePath.text
     property alias cfg_webLink: webLink.text
     property alias cfg_linkName: linkName.text
     property alias cfg_transparentBackground: transparentCheckBox.checked
@@ -130,6 +134,33 @@ KCM.SimpleKCM {
                 icon.name: "document-open"
                 text: i18n("Browse...")
                 onClicked: fileDialog.open()
+            }
+        }
+
+        RowLayout {
+            Kirigami.FormData.label: i18n("Hover image:")
+
+            TextField {
+                id: hoverImagePath
+                Layout.fillWidth: true
+                placeholderText: i18n("Optional: Image shown on hover...")
+                readOnly: false
+
+                ToolTip.visible: hovered
+                ToolTip.text: i18n("Optional: This image will be shown when hovering over the widget")
+            }
+
+            Button {
+                icon.name: "document-open"
+                text: i18n("Browse...")
+                onClicked: hoverFileDialog.open()
+            }
+
+            Button {
+                icon.name: "edit-clear"
+                text: i18n("Clear")
+                enabled: hoverImagePath.text !== ""
+                onClicked: hoverImagePath.text = ""
             }
         }
 
@@ -251,11 +282,35 @@ KCM.SimpleKCM {
 
         onAccepted: {
             let path = selectedFile.toString()
-            // Remove file:// prefix
             if (path.startsWith("file://")) {
                 path = path.substring(7)
             }
             imagePath.text = path
+        }
+    }
+
+    FileDialog {
+        id: hoverFileDialog
+        title: i18n("Select Hover Image File")
+        currentFolder: "file://" + (hoverImagePath.text ? hoverImagePath.text.substring(0, hoverImagePath.text.lastIndexOf('/')) : 
+                                    (imagePath.text ? imagePath.text.substring(0, imagePath.text.lastIndexOf('/')) : ""))
+        nameFilters: [
+            i18n("Image Files (*.gif *.jpg *.jpeg *.png *.webp *.svg)"),
+            i18n("GIF Images (*.gif)"),
+            i18n("JPEG Images (*.jpg *.jpeg)"),
+            i18n("PNG Images (*.png)"),
+            i18n("WebP Images (*.webp)"),
+            i18n("SVG Images (*.svg)"),
+            i18n("All Files (*)")
+        ]
+        fileMode: FileDialog.OpenFile
+
+        onAccepted: {
+            let path = selectedFile.toString()
+            if (path.startsWith("file://")) {
+                path = path.substring(7)
+            }
+            hoverImagePath.text = path
         }
     }
 }
@@ -276,30 +331,29 @@ PlasmoidItem {
     id: root
 
     property string imagePath: plasmoid.configuration.imagePath
+    property string hoverImagePath: plasmoid.configuration.hoverImagePath
     property string webLink: plasmoid.configuration.webLink
     property string linkName: plasmoid.configuration.linkName
     property bool transparentBackground: plasmoid.configuration.transparentBackground
     property bool autoResize: plasmoid.configuration.autoResize
     property bool isAnimated: imagePath.toLowerCase().endsWith(".gif")
+    property bool isHoverAnimated: hoverImagePath.toLowerCase().endsWith(".gif")
     property bool useCustomSize: plasmoid.configuration.useCustomSize
     property int customWidth: plasmoid.configuration.customWidth
     property int customHeight: plasmoid.configuration.customHeight
+    property bool hasHoverImage: hoverImagePath !== ""
 
-    // Check if plasmoid is in a panel
     readonly property bool inPanel: (plasmoid.location === PlasmaCore.Types.TopEdge ||
                                      plasmoid.location === PlasmaCore.Types.RightEdge ||
                                      plasmoid.location === PlasmaCore.Types.BottomEdge ||
                                      plasmoid.location === PlasmaCore.Types.LeftEdge)
 
-    // Set minimum size to 2x2 grid units
     Layout.minimumWidth: Kirigami.Units.gridUnit * 2
     Layout.minimumHeight: Kirigami.Units.gridUnit * 2
 
-    // Tooltip for panels
     toolTipMainText: inPanel && linkName ? linkName : ""
     toolTipSubText: inPanel && linkName && webLink ? webLink : ""
 
-    // Custom resize function with minimum size enforcement
     function applyCustomSize() {
         if (useCustomSize) {
             var width = Math.max(Kirigami.Units.gridUnit * 2, customWidth)
@@ -310,7 +364,6 @@ PlasmoidItem {
             Layout.maximumWidth = width
             Layout.maximumHeight = height
         } else {
-            // Reset to default behavior with 2x2 minimum
             Layout.preferredWidth = Kirigami.Units.gridUnit * 10
             Layout.preferredHeight = Kirigami.Units.gridUnit * 10
             Layout.maximumWidth = -1
@@ -318,7 +371,6 @@ PlasmoidItem {
         }
     }
 
-    // Apply custom size on configuration changes
     onUseCustomSizeChanged: applyCustomSize()
     onCustomWidthChanged: applyCustomSize()
     onCustomHeightChanged: applyCustomSize()
@@ -335,11 +387,12 @@ PlasmoidItem {
         }
     }
 
-    // When in panel, use full representation directly (no popup)
     preferredRepresentation: inPanel ? fullRepresentation : compactRepresentation
 
     compactRepresentation: Item {
         id: compact
+
+        property bool isHovered: false
 
         Loader {
             id: compactImageLoader
@@ -351,7 +404,7 @@ PlasmoidItem {
             Component {
                 id: animatedImageComponent
                 AnimatedImage {
-                    source: root.imagePath
+                    source: compact.isHovered && root.hasHoverImage ? root.hoverImagePath : root.imagePath
                     fillMode: Image.PreserveAspectFit
                     playing: true
                     visible: root.imagePath !== ""
@@ -364,7 +417,7 @@ PlasmoidItem {
             Component {
                 id: staticImageComponent
                 Image {
-                    source: root.imagePath
+                    source: compact.isHovered && root.hasHoverImage ? root.hoverImagePath : root.imagePath
                     fillMode: Image.PreserveAspectFit
                     visible: root.imagePath !== ""
                     cache: true
@@ -376,8 +429,12 @@ PlasmoidItem {
 
         MouseArea {
             anchors.fill: parent
+            hoverEnabled: true
             cursorShape: root.webLink ? Qt.PointingHandCursor : Qt.ArrowCursor
             acceptedButtons: Qt.LeftButton | Qt.RightButton
+
+            onEntered: compact.isHovered = true
+            onExited: compact.isHovered = false
 
             onClicked: function(mouse) {
                 if (mouse.button === Qt.LeftButton && root.webLink) {
@@ -409,6 +466,8 @@ PlasmoidItem {
         Layout.preferredWidth: inPanel ? Kirigami.Units.gridUnit * 2 : Kirigami.Units.gridUnit * 25
         Layout.preferredHeight: inPanel ? Kirigami.Units.gridUnit * 2 : Kirigami.Units.gridUnit * 25
 
+        property bool isHovered: false
+
         Loader {
             id: fullImageLoader
             anchors.fill: parent
@@ -419,7 +478,7 @@ PlasmoidItem {
             Component {
                 id: fullAnimatedImageComponent
                 AnimatedImage {
-                    source: root.imagePath
+                    source: fullRep.isHovered && root.hasHoverImage ? root.hoverImagePath : root.imagePath
                     fillMode: root.autoResize ? Image.PreserveAspectFit : Image.Pad
                     playing: true
                     visible: root.imagePath !== ""
@@ -434,7 +493,7 @@ PlasmoidItem {
             Component {
                 id: fullStaticImageComponent
                 Image {
-                    source: root.imagePath
+                    source: fullRep.isHovered && root.hasHoverImage ? root.hoverImagePath : root.imagePath
                     fillMode: root.autoResize ? Image.PreserveAspectFit : Image.Pad
                     visible: root.imagePath !== ""
                     cache: true
@@ -448,11 +507,17 @@ PlasmoidItem {
 
         MouseArea {
             anchors.fill: parent
+            hoverEnabled: true
             cursorShape: root.webLink ? Qt.PointingHandCursor : Qt.ArrowCursor
-            enabled: root.imagePath !== "" && root.webLink !== ""
+            enabled: root.imagePath !== ""
+
+            onEntered: fullRep.isHovered = true
+            onExited: fullRep.isHovered = false
 
             onClicked: {
-                root.openWebLink()
+                if (root.webLink !== "") {
+                    root.openWebLink()
+                }
             }
         }
 
@@ -470,7 +535,6 @@ PlasmoidItem {
             onDropped: function(drop) {
                 if (drop.hasUrls && drop.urls.length > 0) {
                     let url = drop.urls[0].toString()
-                    // Remove file:// prefix if present
                     if (url.startsWith("file://")) {
                         url = url.substring(7)
                     }
@@ -500,23 +564,17 @@ echo "📦 Packaging plasmoid..."
 cd "$BUILD_DIR"
 ZIP_FILE="$BUILD_DIR/${PLASMOID_ID}.plasmoid"
 
-# Remove old package if exists
 rm -f "$ZIP_FILE"
-
-# Create package
 zip -qr "$ZIP_FILE" "$PLASMOID_ID"
 
 echo "📦 Built: $ZIP_FILE"
 echo "🚀 Installing..."
 
-# Remove old version if exists (suppress error if not installed)
 echo "🗑️  Removing old version if it exists..."
 kpackagetool6 -t Plasma/Applet -r "$PLASMOID_ID" 2>/dev/null || echo "   (No previous version found)"
 
-# Also remove any manually created directories
 rm -rf "$HOME/.local/share/plasma/plasmoids/$PLASMOID_ID"
 
-# Install new version
 if kpackagetool6 -t Plasma/Applet -i "$ZIP_FILE"; then
     echo "✅ Image Web Link plasmoid installed successfully!"
     echo ""
@@ -528,11 +586,11 @@ if kpackagetool6 -t Plasma/Applet -i "$ZIP_FILE"; then
     echo "✅ Complete! Add the widget via:"
     echo "   Right-click desktop → Add Widgets → Image Web Link"
     echo ""
-    echo "📝 Changes in v1.3:"
-    echo "   • Added 'Link Name' field in settings"
-    echo "   • Tooltip shows link name when hovering in panels"
-    echo "   • Minimum size set to 2x2 grid units"
-    echo "   • Popup removed when plasmoid is in a panel"
+    echo "📝 Changes in v1.4:"
+    echo "   • Added optional hover image feature"
+    echo "   • Shows alternative image when cursor hovers over widget"
+    echo "   • Works in both compact and full representations"
+    echo "   • Hover image is completely optional - leave blank to disable"
     echo ""
     echo "🧹 Cleaning up temporary files..."
     rm -rf "$BUILD_DIR"
