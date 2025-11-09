@@ -36,6 +36,7 @@ You can also set a hover image — an alternate image that appears when your mou
 
 
 
+
 ⚙️ Configuration Options
 Setting	Description
 Image file	Main image displayed by the widget
@@ -46,6 +47,7 @@ Transparent background	Removes default Plasma background
 Auto-resize	Automatically fits the image to widget area
 Use custom size	Enables manual width/height settings
 Custom width / height	Fixed pixel size for the image widget
+
 
 
 
