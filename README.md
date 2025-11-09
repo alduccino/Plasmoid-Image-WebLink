@@ -19,12 +19,19 @@ You can also set a hover image — an alternate image that appears when your mou
 ✨ Features
 
 ✅ Supports GIF, JPG, PNG, WebP, and SVG formats
+
 ✅ Optional hover image (different image when hovering)
+
 ✅ Optional clickable web link
+
 ✅ Transparent or default background
+
 ✅ Drag & drop image support
+
 ✅ Custom or auto size options
+
 ✅ Works in both panel and desktop modes
+
 ✅ Uses modern Plasma 6.4 / Kirigami 6 APIs
 
 
@@ -56,6 +63,7 @@ Adjusts size automatically or according to your custom dimensions
 
 When added to a panel, it switches to a compact representation with tooltip info.
 On the desktop, it expands to full representation with support for image drop and resizing.
+
 
 
 
