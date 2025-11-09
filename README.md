@@ -53,6 +53,7 @@ On the desktop, it expands to full representation with support for image drop an
 🔹 Automatic Build & Install (Recommended)
 
 Run the included builder script:
+
 chmod +x build-imageweblink.sh
 ./build-imageweblink.sh
 
